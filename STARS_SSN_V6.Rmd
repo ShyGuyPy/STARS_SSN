@@ -45,7 +45,7 @@ path = "data/ICPRB6/lsn.ssn"
 Set path to data directory. 
 # 3.1. The S4 SpatialStreamNetwork object
 
-In the Vignettethe structure of the data input into a SpatialStreamNetwork object is described in detail. I will not be recounting it here, but I recommend reading through it if you want a clearer understanding of the data that is being processed, or the required structure of any data set you might wish to input into this model.
+In the Vignette the structure of the data input into a SpatialStreamNetwork object is described in detail. I will not be recounting it here, but I recommend reading through it if you want a clearer understanding of the data that is being processed, or the required structure of any data set you might wish to input into this model.
 
 # 4.2. Importing and subsetting the SpatialStreamNetwork object
 

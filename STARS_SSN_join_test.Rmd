@@ -1,0 +1,85 @@
+---
+title: "STARS_SSN_join_test"
+author: "Luke Vawter"
+date: '2023-02-28'
+output: html_document
+---
+
+testing if we can extract data, link it to ids and put it back
+
+Andrea:
+"Both the 1_Preds and 4_Preds folders contain 2 subfolders: ssn and data. Hopefully the data can be joined to the ssn on STATIONID in R. 
+
+1_Preds has all data at the predication sites in one file, whereas 
+4_Preds has four preds files.
+
+See Data_descriptions for an explanation of the abbreviations used in the data files."
+
+import SSN package
+```{r}
+library("SSN")
+
+```
+
+```{r}
+path_1preds = "data/push_test/Separate_Data/1Preds/lsn1/lsn.ssn"
+# path_4preds = "data/push_test/Separate_Data/4Preds/lsn/lsn.ssn"
+
+path_1data_preds = "data/push_test/Separate_Data/1Preds/data1/preds_data/preds_data.txt"
+
+path_1data_sites = "data/push_test/Separate_Data/1Preds/data1/sites_data.txt"
+
+# path_4data_sites = "data/push_test/Separate_Data/4Preds/data1//sites_data.txt"
+
+
+```
+
+Import the data into an SSN object and pull out to dataframe
+```{r}
+ssn_1preds.ssn <- importSSN(path_1preds)#, predpts = "preds")
+
+ssn_1preds.df<- getSSNdata.frame(ssn_1preds.ssn)
+```
+
+get site data to dataframe
+```{r}
+data1_sites.df <- data.table::fread(path_1data_sites,  data.table = FALSE)
+```
+
+join site and
+```{r}
+library(dplyr)
+ssn_1preds_joined.df <- left_join(ssn_1preds.df, data1_sites.df, by = c("STATIONID"))# %>%
+  # select(-"")
+  
+# ssn_1preds_joined_dif.df <- left_join(ssn_1preds.df, data1_sites.df, by = c("SITE","SDATE")) #%>%
+  # select(-"pid")
+
+unique_ssn_1preds_joined.df <- unique(ssn_1preds_joined.df)
+```
+
+```{r}
+ssn_1preds_joined.ssn <- putSSNdata.frame(ssn_1preds_joined.df, ssn_1preds.ssn)
+
+ssn_1preds_joined2.ssn <- putSSNdata.frame(ssn_1preds.ssn, ssn_1preds_joined.df)
+
+help(putSSNdata.frame)
+
+```
+
+```{r}
+test <- (!"pid" %in% names(ssn_1preds_joined.df)| !all(row.names(ssn_1preds_joined.df) == ssn_1preds_joined.df$pid))
+```
+
+```{r}
+test1 <- (!"pid" %in% names(ssn_1preds_joined.df))
+test2 <- !all(row.names(ssn_1preds_joined.df) == ssn_1preds_joined.df$pid)
+test3 <- ssn_1preds_joined.df$pid
+
+row.names(ssn_1preds_joined.df) <-as.character(row.names(ssn_1preds_joined.df))
+typeof(row.names(ssn_1preds_joined.df))
+
+row.names(ssn_1preds_joined.df) <- ssn_1preds_joined.df$pid
+```
+
+
