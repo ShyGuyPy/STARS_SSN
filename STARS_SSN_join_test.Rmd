@@ -63,7 +63,7 @@ ssn_1preds_joined.ssn <- putSSNdata.frame(ssn_1preds_joined.df, ssn_1preds.ssn)
 
 ssn_1preds_joined2.ssn <- putSSNdata.frame(ssn_1preds.ssn, ssn_1preds_joined.df)
 
-help(putSSNdata.frame)
+# help(putSSNdata.frame)
 
 ```
 
@@ -81,5 +81,6 @@ typeof(row.names(ssn_1preds_joined.df))
 
 row.names(ssn_1preds_joined.df) <- ssn_1preds_joined.df$pid
 ```
+
 
 
