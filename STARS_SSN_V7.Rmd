@@ -12,18 +12,19 @@ import SSN package
 ```{r}
 library("SSN")
 
+library(dplyr)
 ```
 
 set working directory for the ssn
 ```{r}
-path_main = "data/ICPRB7/JonesFalls_Test"
+path_main = "data/ICPRB7/JF_short_05172023"
 
-path_ssn = paste0(path_main, "/lsn.ssn")
+path_ssn = paste0(path_main, "/JF_short_05172023/lsn/lsn.ssn")
 
 
-path_preds = paste0(path_main, "/data/Preds_data_JF.txt")
+path_preds = paste0(path_main, "/JF_short_05172023/data/Preds_data_JF.txt")
 
-path_sites = paste0(path_main, "/data/Sites_data_JF.txt")
+path_sites = paste0(path_main, "/JF_short_05172023/data/Sites_data_JF.txt")
 ```
 
 Set path to data directory. 
@@ -44,7 +45,7 @@ ssn_main <- importSSN(path_ssn, predpts = "preds")
 
 ssn_main.df<- getSSNdata.frame(ssn_main)
 
-#needed to change column name to match sites and preds dfs
+###needed to change column name to match sites and preds dfs
 ssn_main.df <- rename(ssn_main.df, LinkID = LINKID)
 ```
 
@@ -93,10 +94,10 @@ ssn_joined_preds.df <- left_join(ssn_main.df, preds.df, by = c("LinkID"))
 overwrite ssn object with new data
 ```{r}
 #add sites
-ssn_main <- putSSNdata.frame(ssn_joined_sites.df , ssn_main)
+ssn_main_sites <- putSSNdata.frame(ssn_joined_sites.df , ssn_main)
 
 #add preds
-ssn_main <- putSSNdata.frame(ssn_joined_preds.df, ssn_main)
+ssn_main_sites_w_preds <- putSSNdata.frame(ssn_joined_preds.df, ssn_main_sites)
 
 ```
 
@@ -123,6 +124,13 @@ needs attention
 Create distance matrix and access, assigning to distPred 
 "Using the getStreamDistMat function allows accessing the asymmetric stream distance matrix after it is created."
 ```{r}
+# ######test distmatrix without preds
+# ssn_main <- importSSN(path_ssn)
+# createDistMat(ssn_main, o.write = TRUE,
+# amongpreds = FALSE)
+# ######
+
+ssn_main <- importSSN(path_ssn)
 createDistMat(ssn_main, predpts = "preds", o.write = TRUE,
 amongpreds = TRUE)
 
@@ -165,7 +173,7 @@ In our case we used TWAT in place of Summer_nm
 
 and then plot "The generic plotting function of the SpatialStreamNetwork object" to r markdown
 ```{r}
-plot(ssn_main, "TWAT", lwdLineCol = "afvArea",
+plot(ssn_main, "TWAT90", lwdLineCol = "afvArea",
 lwdLineEx = 15, lineCol = "black", xlab = "x-coordinate" ,
 ylab = "y-coordinate", asp=1 )
 ```
