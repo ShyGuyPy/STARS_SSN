@@ -21,7 +21,6 @@ path_main = "data/ICPRB7/JF_short_05172023"
 
 path_ssn = paste0(path_main, "/JF_short_05172023/lsn/lsn.ssn")
 
-
 path_preds = paste0(path_main, "/JF_short_05172023/data/Preds_data_JF.txt")
 
 path_sites = paste0(path_main, "/JF_short_05172023/data/Sites_data_JF.txt")
@@ -125,14 +124,14 @@ Create distance matrix and access, assigning to distPred
 "Using the getStreamDistMat function allows accessing the asymmetric stream distance matrix after it is created."
 ```{r}
 # ######test distmatrix without preds
-# ssn_main <- importSSN(path_ssn)
-# createDistMat(ssn_main, o.write = TRUE,
-# amongpreds = FALSE)
+ssn_main <- importSSN(path_ssn)
+createDistMat(ssn_main, o.write = TRUE,
+amongpreds = FALSE)
 # ######
 
-ssn_main <- importSSN(path_ssn)
-createDistMat(ssn_main, predpts = "preds", o.write = TRUE,
-amongpreds = TRUE)
+# ssn_main <- importSSN(path_ssn)
+# createDistMat(ssn_main, predpts = "preds", o.write = TRUE,
+# amongpreds = TRUE)
 
 distPred <- getStreamDistMat(ssn_main, Name = "preds")
 str(distPred)
