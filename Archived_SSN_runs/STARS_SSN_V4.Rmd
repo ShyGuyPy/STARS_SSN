@@ -1,0 +1,369 @@
+---
+title: "STARS_SSN_V4"
+author: "Luke Vawter"
+date: "2/23/2022"
+output:   
+  html_document:
+    df_print: paged
+    toc: true
+    toc_depth: '6'
+    toc_float: true
+---
+
+# -Introduction-
+
+This is a modification of STARS_SSN_V2(which ran to completion but gave bad output).
+This is the first version to run to completion and give full outputs, including predictions.This should be the template for ssn runs moving forward.
+
+
+There is sample code for running an SSN prediction model at:
+
+https://www.fs.fed.us/rm/boise/AWAE/projects/NorWeST/downloads/NorWeST%20SSN%20example%20code.R
+
+When sample code is referenced here, this is what is being referred to
+
+# -Initial Set-up-
+
+### Install Packages and Set Data Path
+
+the SSN library is imported. A path for our the SSN data is set. This data is an output from Andrea Nagel's run of STARS.
+```{r}
+library(SSN)
+library(dplyr)
+library(lubridate)
+
+ data_path ='data/ICPRB4/lsn.ssn'
+```
+
+### Create Custom Functions
+
+functions are created for standardizing variables and predictions, that will be used later. These have been pulled directly from the sample code.
+```{r}
+# Function to standardize variables
+stand <- function(x) { (x-mean(x))/(2*sd(x))}
+
+# Function to standardize a prediction dataset based on the fitting dataset 
+stdpreds <- function(newset,originalset) {
+	xnames <- colnames(newset)
+	sx <- matrix(rep(NA,ncol(newset)*nrow(newset)),nrow=nrow(newset))
+	for(i in 1:ncol(newset)) {
+		var <- with(originalset,get(xnames[i]))
+		sx[,i] <- (newset[,i]-mean(var))/(2*sd(var))
+		}
+	colnames(sx) <- colnames(newset)
+	return(sx)
+}
+```
+
+### Import Data to SSN Object
+
+import the data from our data to an ssn object
+```{r}
+
+test.ssn <- importSSN(data_path, predpts = "preds", o.write = T)
+```
+
+### Clean Data
+
+from our ssn object we grab a dataframe and push the dataframe back into he ssn object. We also convert DATE value to julian. 
+We also remove two covariates (AREAKM2 and TOTDAKM2) that were causing the glmssn function to fail
+```{r}
+test_temp.df<- getSSNdata.frame(test.ssn) 
+
+test_temp.df<- select(test_temp.df, -AREAKM2, -TOTDAKM2)
+
+test_temp.df <- test_temp.df %>%
+  mutate(DATE_ = as.Date(test_temp.df$DATE_, "%Y-%m-%d")) %>%
+  mutate(DATE_ =  yday(test_temp.df$DATE_))
+
+test.ssn <- putSSNdata.frame(test_temp.df,test.ssn,"Obs")
+test_temp.df<- getSSNdata.frame(test.ssn) 
+```
+
+Save the ssn dataframe to our data folder for reference
+```{r}
+write.csv(test.ssn,"data/ICPRB4/test_ssn.csv")
+```
+
+# -Run-
+
+### Distance Matrix
+
+createDistMat function creates a distance matrix. Memory limits for R needed to be increased to run. I set it to 200000 MB, and that was sufficient for our data. Predpts are named preds in our lsn.ssn file and so are given the value 'preds'.
+```{r}
+#had to check memory and then adjust memory limit
+memory.size()
+memory.limit()
+memory.limit(size=200000)
+
+#dist_mat_test = 
+createDistMat(test.ssn, o.write=T, predpts = 'preds', amongpreds=T)
+# ssn, predpts = NULL, o.write = FALSE, amongpreds = FALSE)
+```
+### Torgegrams
+
+create Torgegram
+```{r}
+# Create raw torgegram
+test_torg <- Torgegram(test.ssn,"TWAT",nlag=20)
+plot(test_torg)
+```
+
+plot Torgegram for connected and unconnected(should be dipslayed in kilometers)and save both as jpegs
+```{r}
+jpeg("data/ICPRB4/torgegram_flow_connected.jpg")
+plot.Torgegram(test_torg, sp.relationship = c("fc"), xlab = "Stream Distance (meter)")
+dev.off()
+plot.Torgegram(test_torg, sp.relationship = c("fc"), xlab = "Stream Distance (meter)")
+
+jpeg("data/ICPRB4/torgegram_flow_unconnected.jpg")
+plot.Torgegram(test_torg, sp.relationship = c("fu"), xlab = "Stream Distance (meter)")
+dev.off()
+plot.Torgegram(test_torg, sp.relationship = c("fu"), xlab = "Stream Distance (meter)")
+```
+
+Extract dataframe and fit basic aspatial model with un-standardized predictors
+```{r}
+test.df<- getSSNdata.frame(test.ssn)
+
+test.lm <- lm(TWAT ~ TAIR + PRECIP + SOLRAD + FLOW + ELEV + SLOPE + PURB16 + PFOR16 + PAG16 + PWSTOR16 + PCAN14 + PIMP14 + PEWET + PFWET + PRWET + PHYDA, data=test.df)
+summary(test.lm)
+```
+
+### Standardize Covariates
+
+Standardize continuous covariates and add factor for year
+The following steps are taken from sample code and adapted to fit our data indices/covariates
+```{r}
+# Standardize continuous covariates and add factor for year
+continuous <- test.df[,c(13:28)] #[,c(14:29)]
+cont.s <- apply(continuous,2,stand)
+colnames(cont.s) <- c("TAIR","PRECIP","SOLRAD","FLOW","ELEV","SLOPE","PURB16","PFOR16","PAG16", "PWSTOR16", "PCAN14", "PIMP14", "PEWET", "PFWET", "PRWET", "PHYDA") 
+
+test.df.s <- data.frame(test.df,cont.s)
+
+test.df.s$datef <- factor(test.df.s$DATE_)
+
+test_master <- putSSNdata.frame(test.df.s,test.ssn,"Obs")
+```
+
+esttable is constructed and saved
+```{r}
+library(tibble)
+testAe <- summary(test.lm)$coefficients
+
+backtrans <- testAe[-c(1),1:2]/(2*sapply(continuous,sd))
+
+esttable <- cbind(rbind(testAe[1,1:2],backtrans[1:15,],testAe[10,1:2]),testAe)
+
+#fixes row names by overwriting them
+rownames(esttable) <- rownames(testAe)
+
+write.csv(esttable,"data/ICPRB4/test_aspatialestimates.csv")
+
+# # Aspatial performance
+predictA <- predict(test.lm)
+sqrt(mean((predictA-test.df.s$TWAT)^2))
+# # print(predictA)
+# # 1.885
+```
+
+### Examine correlations
+Generate a correlation plot and save it to data folder
+```{r}
+# Examine correlations
+library(ellipse)
+library(corrplot)
+
+#color for legend
+COL1(sequential = c("Oranges", "Purples", "Reds", "Blues", "Greens",
+                    "Greys", "OrRd", "YlOrRd", "YlOrBr", "YlGn"), n = 200)
+
+cor1 = cor(cont.s)
+jpeg("data/ICPRB4/corrplot.jpg")
+corrplot(cor1, type='lower',col=COL1())
+dev.off()
+corrplot(cor1, type='lower',col=COL1())
+
+```
+
+### Standardize Preds
+
+Standardize preds based on obs and add factor for year- pred
+Code is adapted from sample code to fit our data indices/covariates and output is saved 
+```{r}
+testpreddf <- getSSNdata.frame(test.ssn, "preds")
+
+contpred <- testpreddf[,c(13:28)]
+contpred.s <- stdpreds(contpred,continuous)
+
+ colnames(contpred.s) <-
+c("TAIR", "PRECIP", "SOLRAD", "FLOW", "ELEV", "SLOPE", "PURB16", "PFOR16", "PAG16", "PWSTOR16", "PCAN14", "PIMP14", "PEWET", "PWFET", "PRWET", "PHYDA")#, "AREAKM2","TOTDAKM2")
+testpreddf.s <- data.frame(testpreddf,contpred.s)
+testpreddf.s$datef <- factor(testpreddf.s$DATE_)
+test_master <- putSSNdata.frame(testpreddf.s,test_master,"preds")
+
+testmaster <- getSSNdata.frame(test_master, "preds") 
+write.csv(testmaster,"data/ICPRB4/testmaster.csv")
+```
+
+# -Model 1-
+
+"The glmssn function fits a spatial linear model (Equation 3) to a SpatialStreamNetwork
+object with a covariance structure"
+
+The glmssn function can take hours to run. 
+
+"This limits the size of data sets that can be fit by the glmssn
+function, and for most computing systems today we suggest sample sizes of less than 1000 observations."
+https://www.fs.fed.us/rm/boise/AWAE/projects/SSN_STARS/downloads/SSN/SSNvignette2014.pdf
+page21
+
+Also, we track glmssn run time(elapsed variable), as recommended by sample code
+
+### GLMSSN
+```{r}
+starttime <- Sys.time() # not necessary; just for timing longer runs
+test_1 <- glmssn(formula = TWAT ~ TAIR + PRECIP + SOLRAD + FLOW + ELEV + SLOPE + PURB16 + PFOR16 + PAG16 + PWSTOR16 + PCAN14 + PIMP14 + PEWET + PFWET + PRWET + PHYDA, ssn.object = test_master, EstMeth= "ML", family="gaussian", CorModels = c("locID","datef","Exponential.tailup","Exponential.taildown","Exponential.Euclid"), addfunccol = "afvArea")
+
+elapsed <- Sys.time()-starttime # See above note
+```
+
+### Extract predictions/ Leave-one-out cross validation predictions
+```{r}
+# Extract predictions/ Leave-one-out cross validation predictions
+test_1r <- residuals(test_1, cross.validation=T)
+test_1r.df <- getSSNdata.frame(test_1r)
+```
+
+### Generate Torgegram
+generate a Torgegram of fitted model and save
+```{r}
+# Torgegram of fitted model residuals
+test_1t <- Torgegram(test_1r,"_resid.crossv_",nlag=20)
+jpeg("data/ICPRB4/model_torgegram_full.jpg")
+plot(test_1t, main= "Model1 Residuals Torgegram") 
+dev.off()
+plot(test_1t, main= "Model1 Residuals Torgegram")
+
+jpeg("data/ICPRB4/model_1_flow_connected.jpg")
+plot.Torgegram(test_1t, sp.relationship = c("fc"), xlab = "Stream Distance (meter)")
+dev.off()
+plot.Torgegram(test_1t, sp.relationship = c("fc"), xlab = "Stream Distance (meter)")
+
+jpeg("data/ICPRB4/model_1_flow_unconnected.jpg")
+plot.Torgegram(test_1t, sp.relationship = c("fu"), xlab = "Stream Distance (meter)")
+dev.off()
+plot.Torgegram(test_1t, sp.relationship = c("fu"), xlab = "Stream Distance (meter)")
+```
+
+```{r}
+#Root mean squared error (RMSE) of cross-validated predictions
+sqrt(mean((test_1r.df[,"_CrossValPred_"]-test_1r.df$obsval)^2))
+# 0.969
+
+
+#RMSE of fixed effects only
+sqrt(mean((test_1r.df[,"_fit_"]-test_1r.df$obsval)^2))
+# 1.935
+
+
+# Null RMSE
+sqrt(mean((test_1r.df$obsval-mean(test_1r.df$obsval))^2))
+# 2.996
+
+#Pseudo-r2 of cross-validated predictions. 
+cor(test_1r.df$obsval,test_1r.df[,"_CrossValPred_"])^2
+# 0.895
+```
+### Estimates
+Get parameter estimates, back-transform, and save estimates as model_1_estimates
+```{r}
+test_1e <- summary(test_1)$fixed.effects.estimates
+
+m1_backtrans <- test_1e[-c(0,10),2:3]/(2*sapply(continuous[,c(1:7,9:11)],sd))#continuous[,c
+
+esttable <- cbind(test_1e[,1],rbind(test_1e[1,2:3],m1_backtrans[1:15,],test_1e[10,2:3]),test_1e[,2:5])
+
+write.csv(esttable,"data/ICPRB4/model_1_estimates.csv")
+
+```
+
+
+# -Predictions- 
+
+### split preds
+sample code recommends data can be split using the splitPredictions if the data has multiple prediction point files in .ssn folder. We only have preds, and a managable dataset size. Below code has been commmented out.
+```{r}
+# library(SSN)
+# test_1$ssn.object <- splitPredictions(test_1$ssn.object, "preds-1",chu
+# nksof=10000)
+# # splitPredictions
+# print(test_1$ssn.object)
+
+```
+
+### Extract prediction data frames
+```{r}
+test1p1 <- predict(test_1,predpointsID = "preds")
+
+# # Extract prediction data frames
+pred1df <- getSSNdata.frame(test1p1,"preds")
+
+
+```
+
+### reassemble predictions
+Process of reassembling data will look something like this. This has been commented out but left in for reference.
+```{r}
+# Reassemble the pieces into one batch.
+#not required since wasn't split
+
+# allpreds <- rbind(pred1df[,c("OBSPREDID","STREAM_AUG","STREAM_AUG.predSE")],pred2df[,c("OBSPREDID","STREAM_AUG","STREAM_AUG.predSE")],pred3df[,c("OBSPREDID","STREAM_AUG","STREAM_AUG.predSE")],pred4df[,c("OBSPREDID","STREAM_AUG","STREAM_AUG.predSE")],pred5df[,c("OBSPREDID","STREAM_AUG","STREAM_AUG.predSE")],pred6df[,c("OBSPREDID","STREAM_AUG","STREAM_AUG.predSE")],pred7df[,c("OBSPREDID","STREAM_AUG","STREAM_AUG.predSE")])
+# colnames(allpreds) <- c("OBSPREDID","predtemp","predtempse")
+
+```
+
+### Export Predictions
+Export prediction dataset as a csv (good for general use) and dbf (good for GIS) Commented out as there are currently no predictions to save.
+```{r}
+library(foreign)
+
+write.csv(pred1df,"data/ICPRB4/model_1_predictions.csv",row.names=F)
+write.dbf(pred1df,"data/ICPRB4/model_1_predictions.dbf")
+
+```
+
+
+### Compare Predictions
+Compare predicted and observed at fitting sites, and export. Commented out, no predictions
+```{r}
+
+# predobs <- data.frame(test_1r.df$OBSPREDID,test_1r.df[,"_CrossValPred_"],test_1r.df$obsval)
+#  
+# colnames(predobs) <- c("obspredid","predicted","observed")
+# 
+# write.csv(predobs,"data/ICPRB4/model_1_prediction_observations.csv",row.names=F)
+# 
+# test_obs <- test_1r.df$OBSPREDID
+# 
+# print(test_1r.df[,"_CrossValPred_"])
+```
+
+# -Outputs-
+
+### Estimate Table
+```{r}
+print(esttable)
+```
+
+### Predictions
+```{r}
+print(pred1df)
+```
+
+### Comparison
+```{r}
+# print(predobs)
+```
+

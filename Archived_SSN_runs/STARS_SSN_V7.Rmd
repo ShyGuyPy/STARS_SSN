@@ -1,0 +1,718 @@
+---
+title: "STARS_SSN_V7"
+author: "Luke Vawter"
+date: '2023-03-07'
+output: html_document
+---
+
+
+Run each watershed up to the corrplot
+
+import SSN package
+```{r}
+library("SSN")
+
+library(dplyr)
+```
+
+set working directory for the ssn
+```{r}
+path_main = "data/ICPRB7/JF_short_05172023"
+
+path_ssn = paste0(path_main, "/JF_short_05172023/lsn/lsn.ssn")
+
+path_preds = paste0(path_main, "/JF_short_05172023/data/Preds_data_JF.txt")
+
+path_sites = paste0(path_main, "/JF_short_05172023/data/Sites_data_JF.txt")
+```
+
+Set path to data directory. 
+# 3.1. The S4 SpatialStreamNetwork object
+
+In the Vignette the structure of the data input into a SpatialStreamNetwork object is described in detail. I will not be recounting it here, but I recommend reading through it if you want a clearer understanding of the data that is being processed, or the required structure of any data set you might wish to input into this model.
+
+# 4.2. Importing and subsetting the SpatialStreamNetwork object
+
+
+Import the data into an SSN object and extract to a dataframe
+```{r}
+#without preds
+# ssn_main <- importSSN(path_ssn)
+
+#with preds
+ssn_main <- importSSN(path_ssn, predpts = "preds")
+
+ssn_main.df<- getSSNdata.frame(ssn_main)
+
+###needed to change column name to match sites and preds dfs
+ssn_main.df <- rename(ssn_main.df, LinkID = LINKID)
+```
+
+
+get site data to dataframe
+```{r}
+##so I can grab the .dbf files data
+# library(foreign)
+##
+
+###sites
+
+
+sites.df <- data.table::fread(paste0(path_sites),  data.table = FALSE)
+
+##so I can grab the .dbf files data
+# df_sites <- read.dbf(paste(path_sites,sep=""))
+# write.csv(df_sites,paste0(path_main, "/df_sites.csv"))
+# sites.df <- data.table::fread(paste0(path_main, "/df_sites.csv"),  data.table = FALSE)
+##
+
+
+####preds
+
+preds.df <- data.table::fread(paste0(path_preds),  data.table = FALSE)
+
+##so I can grab the .dbf files data
+# df_preds <- read.dbf(paste(path_preds,sep=""))
+# write.csv(df_preds,paste0(path_main, "/df_preds.csv"))
+# preds.df <- data.table::fread(paste0(path_main, "/df_preds.csv"),  data.table = FALSE)
+##
+
+
+```
+
+join site and preds
+```{r}
+library(dplyr)
+#join
+ssn_joined_sites.df <- left_join(ssn_main.df, sites.df, by = c("LinkID"))# %>%
+
+
+ssn_joined_preds.df <- left_join(ssn_main.df, preds.df, by = c("LinkID"))
+```
+
+overwrite ssn object with new data
+```{r}
+#add sites
+ssn_main_sites <- putSSNdata.frame(ssn_joined_sites.df , ssn_main)
+
+#add preds
+ssn_main_sites_w_preds <- putSSNdata.frame(ssn_joined_preds.df, ssn_main_sites)
+
+```
+
+
+note: SDATE is our sample date and run it by Twat90
+
+# 4.3. Generating an additive function value
+
+needs attention
+-our data is not in the same place
+```{r}
+####our data is not in the same place
+# head(ssn_main@point@data)##[, c("GAGE","LONG_")])
+
+# head(mf04p@data[, c("h2oAreaKm2",
+# "afvArea", "computed.afv")])
+
+# ssn_main_test <- additive.function(ssn_main, AREAKM2, test_cov)
+
+```
+
+# 4.4. Calculating distance matrices
+
+Create distance matrix and access, assigning to distPred 
+"Using the getStreamDistMat function allows accessing the asymmetric stream distance matrix after it is created."
+```{r}
+# ######test distmatrix without preds
+ssn_main <- importSSN(path_ssn)
+createDistMat(ssn_main, o.write = TRUE,
+amongpreds = FALSE)
+# ######
+
+# ssn_main <- importSSN(path_ssn)
+# createDistMat(ssn_main, predpts = "preds", o.write = TRUE,
+# amongpreds = TRUE)
+
+distPred <- getStreamDistMat(ssn_main, Name = "preds")
+str(distPred)
+```
+# 5. Data analysis using SSN
+
+# 5.1. Exploratory data analysis
+output the names of the elements of the data
+```{r}
+names(ssn_main)
+```
+
+
+"For spatial data, it is useful to see mapped data. The default plotting function for a
+SpatialStreamNetwork object is a map (Figure 3):"
+
+plot in r markdown
+```{r}
+plot(ssn_main, lwdLineCol = "afvArea", lwdLineEx = 10, lineCol = "blue",
+pch = 19, xlab = "x-coordinate (m)", ylab = "y-coordinate (m)",
+asp = 1)
+```
+save the plot to directory
+```{r}
+#save plot to directory
+jpeg("data/ICPRB7/plots/afvArea.jpg")
+plot(ssn_main, lwdLineCol = "afvArea", lwdLineEx = 10, lineCol = "blue",
+pch = 19, xlab = "x-coordinate (m)", ylab = "y-coordinate (m)",
+asp = 1)
+```
+
+
+"Our example response variable, Summer_mn, is the average summer stream temperature. This
+response is plotted across the stream network with observation locations colored by their value
+(Figure 4):"
+In our case we used TWAT in place of Summer_nm
+
+
+and then plot "The generic plotting function of the SpatialStreamNetwork object" to r markdown
+```{r}
+plot(ssn_main, "TWAT90", lwdLineCol = "afvArea",
+lwdLineEx = 15, lineCol = "black", xlab = "x-coordinate" ,
+ylab = "y-coordinate", asp=1 )
+```
+save to diretory
+```{r}
+#save plot to directory
+jpeg("data/ICPRB7/plots/brks.jpg")
+brks <- plot(ssn_main, "TWAT90", lwdLineCol = "afvArea",
+lwdLineEx = 15, lineCol = "black", xlab = "x-coordinate" ,
+ylab = "y-coordinate", asp=1 )
+```
+
+
+
+"The observed values are represented by colored points and the stream network
+is shown in black, with the width of the lines proportional to the afvArea column."
+
+
+plot using sp classes to r markdown
+```{r}
+#plot the stream lines
+plot(as.SpatialLines(ssn_main), col = "blue")
+# add the observed locations with size proportional
+# to mean summer temperature
+plot(as.SpatialPoints(ssn_main), pch = 19,
+cex = as.SpatialPointsDataFrame(ssn_main)$TWAT90/9 , add = TRUE)
+# add the prediction locations on the 1 km spacing
+plot(as.SpatialPoints(ssn_main, data = "preds"), cex = 1.5, add = TRUE)
+# add the dense set of points for block prediction on Knapp segment
+###I don't have an equivalent data set to add
+# plot(as.SpatialPoints(ssn_main, data = "Knapp"), pch = 19, cex = 0.3,
+# col = "red", add = TRUE)
+```
+and save to directory
+```{r}
+#save plot to directory
+jpeg("data/ICPRB7/plots/spatial.jpg")
+plot(as.SpatialLines(ssn_main), col = "blue")
+plot(as.SpatialPoints(ssn_main), pch = 19,
+cex = as.SpatialPointsDataFrame(ssn_main)$TWAT90/9 , add = TRUE)
+plot(as.SpatialPoints(ssn_main, data = "preds"), cex = 1.5, add = TRUE)
+```
+
+
+
+plot "Torgegram of the mean summer temperature" to markdown
+```{r}
+ssn_main.Torg <- Torgegram(ssn_main, "TWAT90", nlag = 20, maxlag = 50000)
+
+plot(ssn_main.Torg)
+```
+save plot to directory
+```{r}
+#output graphic to directory
+jpeg("data/ICPRB7/plots/torg.jpg")
+plot(ssn_main.Torg)
+```
+
+# 5.2. Model fitting
+
+run glmssn function on our ssn object, for TWAT90, accounting for ELEV and SLOPE covariates and outputs a summary
+```{r}
+ssn_main.glmssn0 <- glmssn(TWAT90 ~ ELEV + SLOPE, ssn_main,
+CorModels = NULL, use.nugget = TRUE)
+summary(ssn_main)
+```
+summary for comparison
+```{r}
+#comparison
+summary(lm(TWAT90 ~ ELEV + SLOPE, getSSNdata.frame(ssn_main)))
+
+```
+"A spatial model, including a mixture of tail-up, tail-down, and Euclidean covariance models
+is fitted:"
+```{r}
+ssn_main.glmssn1 <- glmssn(TWAT90 ~ ELEV + SLOPE, ssn_main,
+CorModels = c("Exponential.tailup", "Exponential.taildown",
+"Exponential.Euclid"), addfunccol = "afvArea")
+summary(ssn_main.glmssn1)
+
+```
+
+needs attention: we don't have a MaxOver20 covariate/variable/?
+set boundary for max limit of temp
+can write as a script that runs if a value false in this range. Have one for each likely range.
+```{r}
+# ssn_main.glmssnBin <- glmssn(MaxOver20 ~ ELEV + SLOPE, ssn_main,
+# CorModels = c("Mariah.tailup", "Spherical.taildown"),
+# family = "binomial", addfunccol = "afvArea")
+# summary(ssn_main.glmssnBin)
+
+```
+needs attention: no C16 or equivalent
+set boundary for max limit of temp
+```{r}
+# ssn_main.glmssnPoi <- glmssn(C16 ~ ELEV + SLOPE, ssn_main,
+# CorModels = c("LinearSill.tailup", "LinearSill.taildown"),
+# family = "poisson", addfunccol = "afvArea")
+# summary(ssn_main.glmssnPoi)
+
+```
+
+# 5.3. Residuals and diagnostics
+get residiuals
+```{r}
+ssn_main.resid1 <- residuals(ssn_main.glmssn1)
+names( getSSNdata.frame(ssn_main.resid1) )
+
+```
+save plot to directory
+```{r}
+#output graphic to directory
+jpeg("data/ICPRB7/plots/resid_plot.jpg")
+plot(ssn_main.resid1)
+```
+and plot to r markdown
+```{r}
+plot(ssn_main.resid1)
+```
+
+
+
+save plot to directory
+```{r}
+#output graphic to directory
+jpeg("data/ICPRB7/plots/resid_hist.jpg")
+par(mfrow = c(1, 2))
+hist(ssn_main.resid1)
+hist(ssn_main, "TWAT90")
+```
+plot to markdown
+```{r}
+par(mfrow = c(1, 2))
+hist(ssn_main.resid1)
+hist(ssn_main, "TWAT90")
+```
+
+```{r}
+ObsDFr <- getSSNdata.frame(ssn_main.resid1)
+ObsDF <- getSSNdata.frame(ssn_main)
+indOutlier <- ObsDFr["_resid_"] < -3
+ObsDF[indOutlier, "TWAT90"] <- NA
+ssn_mainc <- putSSNdata.frame(ObsDF, ssn_main)
+```
+
+```{r}
+ssn_mainc.glmssn0 <- glmssn(TWAT90 ~ ELEV + SLOPE, ssn_mainc,
+CorModels = c("Exponential.tailup", "Exponential.taildown",
+"Exponential.Euclid"), addfunccol = "afvArea", EstMeth = "ML")
+summary(ssn_mainc.glmssn0)
+
+```
+
+```{r}
+summary(lm(TWAT90 ~ ELEV + SLOPE, getSSNdata.frame(ssn_main)))
+
+```
+
+
+```{r}
+ssn_mainc.glmssn1 <- glmssn(TWAT90 ~ ELEV + SLOPE, ssn_mainc,
+CorModels = c("Exponential.tailup", "Exponential.taildown"),
+addfunccol = "afvArea", EstMeth = "ML")
+summary(ssn_mainc.glmssn1)
+
+```
+need to save plots to directory
+```{r}
+cv.out <- CrossValidationSSN(ssn_mainc.glmssn1)
+par(mfrow = c(1, 2))
+plot(ssn_mainc.glmssn1$sampinfo$z,
+cv.out[, "cv.pred"], pch = 19,
+xlab = "Observed Data", ylab = "LOOCV Prediction")
+abline(0, 1)
+plot( na.omit( getSSNdata.frame(ssn_mainc)[, "TWAT90"]),
+cv.out[, "cv.se"], pch = 19,
+xlab = "Observed Data", ylab = "LOOCV Prediction SE")
+
+```
+save plot to directory
+```{r}
+jpeg("data/ICPRB7/plots/crossvalidation.jpg")
+par(mfrow = c(1, 2))
+plot(ssn_mainc.glmssn1$sampinfo$z,
+cv.out[, "cv.pred"], pch = 19,
+xlab = "Observed Data", ylab = "LOOCV Prediction")
+abline(0, 1)
+plot(na.omit( getSSNdata.frame(ssn_mainc)[, "TWAT90"]),
+cv.out[, "cv.se"], pch = 19,
+xlab = "Observed Data", ylab = "LOOCV Prediction SE")
+
+```
+
+
+```{r}
+CrossValidationStatsSSN(ssn_mainc.glmssn1)
+
+```
+
+
+```{r}
+GR2(ssn_mainc.glmssn1)
+
+varcomp(ssn_mainc.glmssn1)
+
+```
+
+# 5.4. Model selection
+
+```{r}
+AIC(ssn_mainc.glmssn0)
+
+AIC(ssn_mainc.glmssn1)
+
+```
+
+WARNING: This next section of code will take several days to run
+
+"It is clear that SLOPE is not a significant covariate. Here, we re-fit mf04c.glmssn0 with
+REML (the default, so the EstMeth = "ML" argument can be dropped), along with a few
+more covariance structures:"
+This above may or may not be true for our data. For the purposes of following the vignette we will assume that it is.
+```{r}
+ssn_mainc.glmssn1 <- glmssn(TWAT90 ~ ELEV, ssn_mainc,
+CorModels = c("Exponential.tailup", "Exponential.taildown"),
+addfunccol = "afvArea", EstMeth = "ML")
+
+######below glmssn can be run when we know the first one runs############
+
+# ssn_mainc.glmssn2 <- glmssn(TWAT90 ~ ELEV, ssn_mainc,
+# CorModels = c("LinearSill.tailup", "Mariah.taildown"),
+# addfunccol = "afvArea")
+# 
+# ssn_mainc.glmssn3 <- glmssn(TWAT90 ~ ELEV, ssn_mainc,
+# CorModels = c("Mariah.tailup", "LinearSill.taildown"),
+# addfunccol = "afvArea")
+# 
+# ssn_mainc.glmssn4 <- glmssn(TWAT90 ~ ELEV, ssn_mainc,
+# CorModels = c("Spherical.tailup", "Spherical.taildown"),
+# addfunccol = "afvArea")
+# 
+# ssn_mainc.glmssn5 <- glmssn(TWAT90 ~ ELEV, ssn_mainc,
+# CorModels = "Exponential.Euclid",
+# addfunccol = "afvArea")
+```
+
+compare glmssn objects (can't run without running all glmssn above)
+For the pruposes of folowing the vignete script we will assume that ssn_mainc.glmssn1 model is the best fit for our data.
+```{r}
+# options(digits = 4)
+# InfoCritCompare(list(ssn_mainc.glmssn1, ssn_mainc.glmssn2,
+# ssn_mainc.glmssn3, ssn_mainc.glmssn4, ssn_mainc.glmssn5))
+# 
+# options(digits = 7)
+```
+
+at this point the glmssn model that best fits the data should be used. For now we will use glmssn1 
+
+summary of ssn_mainc.glmssin1
+```{r}
+summary(ssn_mainc.glmssn1) #was ssn_mainc.glmssn2
+
+```
+
+```{r}
+ssn_mainc.resid1 <- residuals(ssn_mainc.glmssn1,
+cross.validation = TRUE)
+ssn_mainc.resid1.cv.std <-
+getSSNdata.frame(ssn_mainc.resid1)[, "_resid.crossv_"] /
+getSSNdata.frame(ssn_mainc.resid1)[, "_CrossValStdErr_"]
+hist(ssn_mainc.resid1.cv.std)
+
+```
+save plot to directory
+```{r}
+jpeg("data/ICPRB7/plots/resid1_hist.jpg")
+hist(ssn_mainc.resid1.cv.std)
+```
+
+
+plot torgegram
+```{r}
+plot(Torgegram(ssn_mainc.resid1, "_resid_", nlag = 8, maxlag = 25000))
+```
+
+save plot to directory
+```{r}
+jpeg("data/ICPRB7/plots/resid1_torg.jpg")
+plot(Torgegram(ssn_mainc.resid1, "_resid_", nlag = 8, maxlag = 25000))
+
+```
+
+
+
+
+
+# 5.5 Predictions:
+plot predictions
+```{r}
+ssn_mainc.preds <- predict(ssn_mainc.glmssn1, "preds") ##was ssn_mainc.glmssn4
+plot(ssn_mainc.preds, SEcex.max = 1, SEcex.min = .5/3*2,
+breaktype = "user", brks = brks)
+```
+
+ save plot to directory
+```{r}
+jpeg("data/ICPRB7/plots/predictions.jpg")
+plot(ssn_mainc.preds, SEcex.max = 1, SEcex.min = .5/3*2,
+breaktype = "user", brks = brks)
+
+```
+
+Save ssn objects as dataframe csv outputs
+```{r}
+main_glmssn1.df <- getSSNdata.frame(ssn_main.glmssn1)
+write.csv(main_glmssn1.df,"data/ICPRB7/dataframes/main_glmssn1.csv")
+
+mainc_glmssn0.df <- getSSNdata.frame(ssn_mainc.glmssn0)
+write.csv(mainc_glmssn0.df,"data/ICPRB7/dataframes/mainc_glmssn0.csv")
+
+mainc_glmssn1.df <- getSSNdata.frame(ssn_mainc.glmssn1)
+write.csv(mainc_glmssn1.df,"data/ICPRB7/dataframes/mainc_glmssn1.csv")
+
+main_resid1.df <- getSSNdata.frame(ssn_main.resid1)
+write.csv(main_resid1.df,"data/ICPRB7/dataframes/main_resid1.csv")
+
+mainc_resid1.df <- getSSNdata.frame(ssn_mainc.resid1)
+write.csv(mainc_resid1.df,"data/ICPRB7/dataframes/mainc_resid1.csv")
+
+preds.df <- getSSNdata.frame(ssn_mainc.preds)
+write.csv(preds.df,"data/ICPRB7/dataframes/preds.csv")
+
+```
+
+Here we would plot for other pred points, if available:
+
+plot
+```{r}
+# plot(ssn_mainc, "TWAT90", pch = 1, cex = 3,
+# xlab = "x-coordinate", ylab = "y-coordinate",
+# xlim = c(-1511000,-1500000), ylim = c(2525000,2535000))
+# ssn_mainc.glmssn1.preds <- predict(ssn_mainc.glmssn1, "preds")
+# plot(ssn_mainc.glmssn1.preds, "TWAT90", add = TRUE,
+# xlim = c(-1511000,-1500000), ylim = c(2525000,2535000))
+
+```
+save plot to directory
+```{r}
+# jpeg("data/ICPRB7/plots/.jpg")
+# plot(ssn_mainc, "TWAT90", pch = 1, cex = 3,
+# xlab = "x-coordinate", ylab = "y-coordinate",
+# xlim = c(-1511000,-1500000), ylim = c(2525000,2535000))
+# ssn_mainc.glmssn1.preds <- predict(ssn_mainc.glmssn1, "preds")
+# plot(ssn_mainc.glmssn1.preds, "TWAT90", add = TRUE,
+# xlim = c(-1511000,-1500000), ylim = c(2525000,2535000))
+
+```
+
+
+"By using matching break points for observed data and predicted data, we can see that predictions seem reasonable given the observed data.
+The prediction sites are on a dense evenly-spaced grid because they are used to approximate
+the integrals involved with block prediction:"
+
+This won't run. Produces "Error: cannot allocate vector of size 13.9 Gb"
+```{r}
+# ssn_mainc.glmssn1.BPPreds <- BlockPredict(ssn_mainc.glmssn1, "preds")
+# ssn_mainc.glmssn1.BPPreds
+
+```
+
+"We can repeat this for another set of spatially dense locations on the Cape Horn tributary of
+the Middle Fork river:"
+We could run something like this if we had multiple pred regions/files:
+```{r}
+# mf04c.glmssn4.BPCapeHorn <- BlockPredict(mf04c.glmssn4, "CapeHorn")
+# mf04c.glmssn4.BPCapeHorn
+```
+
+"When fitting a model with glmssn, records with NA response values are used to create a new
+prediction data set, called _MissingObs_, in the fitted glmssn object."
+I think this output will be meaningless in our case, as this is based off outliers from the example data that do not exist in our data set. I beleive the pid specified below is based off of that assumption. I'll leave the output in 
+```{r}
+# ssn_mainc.missingobs <- predict(ssn_mainc.glmssn1, "_MissingObs_")
+# getPreds(ssn_mainc.missingobs, pred.type = "pred")
+# 
+# with(getSSNdata.frame(ssn_main), TWAT90[pid==29]) 
+```
+
+# 6. Simulating stream network data
+# 6.1. Creating a SpatialStreamNetwork object
+The following section appears to cover creating a SSN object in the abstract sense, as we have already done. I won't be running any of the code below for this run, since none of it seems to apply specificaly to getting outputs from our dataset. You may want to read through this section in the vignette to verify if my assumption is correct.
+```{r}
+# createSSN(n, obsDesign, predDesign = noPoints, path,
+# importToR = FALSE, treeFunction = igraphKamadaKawai)
+
+```
+
+need to save plot to directory
+```{r}
+# set.seed(12)
+# iterative.ssn <- createSSN(n = c(30, 10),
+# obsDesign = binomialDesign(c(10,10)),
+# importToR = TRUE, path = "./SimIterative.ssn",
+# treeFunction = iterativeTreeLayout)
+# plot(iterative.ssn, lwdLineCol = "addfunccol", lwdLineEx = 8,
+#      lineCol = "blue", cex = 2, xlab = "x-coordinate",
+# ylab = "y-coordinate", pch = 1)
+```
+
+next two chunks are for one plot
+need to save plot to directory
+```{r}
+# set.seed(101)
+# raw.ssn <- createSSN(n = c(10, 10, 10),
+# obsDesign = binomialDesign(c(40, 40, 40)),
+# predDesign = systematicDesign(c(0.2, 0.4, 0.8)), importToR = TRUE,
+# path = "./raw.ssn")
+# plot(raw.ssn, lwdLineCol = "addfunccol", lwdLineEx = 8,
+# lineCol = "blue", cex = 2, xlab = "x-coordinate",
+# ylab = "y-coordinate", pch = 1)
+# plot(raw.ssn, PredPointsID = "preds", add = TRUE, cex = .5, pch = 19,
+# col = "green")
+
+```
+
+```{r}
+# set.seed(13)
+# hardcore.ssn <- createSSN(n = c(10, 10),
+# obsDesign = hardCoreDesign(c(200, 200), c(0.2, 0.4)),
+# importToR = TRUE, path = "./SimHardcore.ssn")
+# plot(hardcore.ssn, lwdLineCol = "addfunccol", lwdLineEx = 8,
+# lineCol = "blue", cex = 2, xlab = "x-coordinate",
+# ylab = "y-coordinate", pch = 1)
+# plot(hardcore.ssn, PredPointsID = NULL, add = TRUE, cex = .5,
+# pch = 19, col = "green")
+```
+
+# 6.2. Simulating data on the SpatialStreamNetwork object
+```{r}
+# createDistMat(raw.ssn, "preds", o.write=TRUE, amongpred = TRUE)
+```
+
+```{r}
+# rawDFobs <- getSSNdata.frame(raw.ssn, "Obs")
+# rawDFpred <- getSSNdata.frame(raw.ssn, "preds")
+```
+
+```{r}
+# rawDFobs[,"X1"] <- rnorm(length(rawDFobs[,1]))
+# rawDFpred[,"X1"] <- rnorm(length(rawDFpred[,1]))
+# rawDFobs[,"X2"] <- rnorm(length(rawDFobs[,1]))
+# rawDFpred[,"X2"] <- rnorm(length(rawDFpred[,1]))
+```
+
+```{r}
+# rawDFobs[,"F1"] <- as.factor(sample.int(4,length(rawDFobs[,1]),
+# replace = TRUE))
+# rawDFpred[,"F1"] <- as.factor(sample.int(4,length(rawDFpred[,1]),
+# replace = TRUE))
+```
+
+```{r}
+# rawDFobs[,"RE1"] <- as.factor(sample(1:3,length(rawDFobs[,1]),
+# replace = TRUE))
+# rawDFobs[,"RE2"] <- as.factor(sample(1:4,length(rawDFobs[,1]),
+# replace = TRUE))
+# rawDFpred[,"RE1"] <- as.factor(sample(1:3,length(rawDFpred[,1]),
+# replace = TRUE))
+# rawDFpred[,"RE2"] <- as.factor(sample(1:4,length(rawDFpred[,1]),
+# replace = TRUE))
+```
+
+```{r}
+# set.seed(102)
+# sim.out <- SimulateOnSSN(raw.ssn, ObsSimDF = rawDFobs,
+# PredSimDF = rawDFpred, PredID = "preds",
+# formula = ~ X1 + X2 + F1, coefficients = c(10,1,0,-2,0,2),
+# CorModels = c("LinearSill.tailup", "Mariah.taildown",
+# "Exponential.Euclid", "RE1", "RE2"), use.nugget = TRUE,
+# CorParms = c(3, 10, 2, 10, 1, 5, 1, .5, .1),
+# addfunccol = "addfunccol")
+```
+
+```{r}
+# with(rawDFobs, colnames(model.matrix( ~ X1 + X2 + F1)))
+```
+
+```{r}
+# sim.out$FixedEffects
+# 
+# sim.out$CorParms
+```
+
+```{r}
+# sim.ssn <- sim.out$ssn.object
+```
+
+plot needs to be saved to directory
+```{r}
+# plot(sim.ssn, "Sim_Values",
+# xlab = "x-coordinate", ylab = "y-coordinate",
+# cex = 1.5)
+
+```
+
+```{r}
+# simDFobs <- getSSNdata.frame(sim.ssn, "Obs")
+# simDFpred <- getSSNdata.frame(sim.ssn, "preds")
+```
+
+```{r}
+# simpreds <- simDFpred[,"Sim_Values"]
+# simDFpred[,"Sim_Values"] <- NA
+# sim.ssn <- putSSNdata.frame(simDFpred, sim.ssn, "preds")
+```
+
+```{r}
+# glmssn.out <- glmssn(Sim_Values ~ X1 + X2 + F1, sim.ssn,
+# CorModels = c("LinearSill.tailup", "Mariah.taildown",
+# "Exponential.Euclid", "RE1", "RE2"),
+# addfunccol = "addfunccol")
+```
+
+```{r}
+# summary(glmssn.out)
+```
+
+```{r}
+# glmssn.pred <- predict(glmssn.out,"preds")
+# predDF <- getSSNdata.frame(glmssn.pred, "preds")
+# plot(simpreds, predDF[,"Sim_Values"], xlab = "True",
+# ylab = "Predicted", pch = 19)
+
+```
+
+# 7. Discussion and future development
+
+---Section to be added after studying outputs further---
+
+
+
+
+
