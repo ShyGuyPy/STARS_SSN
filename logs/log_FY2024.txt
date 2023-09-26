@@ -1,0 +1,4 @@
+9/26/2023- Next step: Andrea is processing the conplete Maryland Cold Water streams data through STARS. It will be run through SSN step my step. Our goal is plot outputs for 
+interpretation by SSN team. 
+
+New Items: Organized and archived older projects. New file for 2024 is STARS_SSN_FY2024.rmd
