@@ -1,0 +1,51 @@
+---
+title: "Andrea_test"
+author: "Luke Vawter"
+date: "7/19/2022"
+output: html_document
+---
+
+# -Initial Set-up-
+
+### Install Packages and Set Data Path
+
+the SSN library is imported. A path for our the SSN data is set. This data is an output from Andrea Nagel's run of STARS.
+
+```{r}
+library(SSN)
+library(dplyr)
+library(lubridate)
+
+ # data_path ='data/Andrea_test/lsn.ssn'
+ data_path ='data/Andrea_test/lsn6c.ssn'
+```
+
+### Create Custom Functions
+
+functions are created for standardizing variables and predictions, that will be used later. These have been pulled directly from the sample code.
+```{r}
+# Function to standardize variables
+stand <- function(x) { (x-mean(x))/(2*sd(x))}
+
+# Function to standardize a prediction dataset based on the fitting dataset 
+stdpreds <- function(newset,originalset) {
+	xnames <- colnames(newset)
+	sx <- matrix(rep(NA,ncol(newset)*nrow(newset)),nrow=nrow(newset))
+	for(i in 1:ncol(newset)) {
+		var <- with(originalset,get(xnames[i]))
+		sx[,i] <- (newset[,i]-mean(var))/(2*sd(var))
+		}
+	colnames(sx) <- colnames(newset)
+	return(sx)
+}
+```
+
+### Import Data to SSN Object
+
+import the data from our data to an ssn object
+```{r}
+# setwd(data_path)
+
+andrea_test.ssn <- importSSN(data_path, predpts = "preds", o.write = T)
+# andrea_test.ssn <- importSSN(data_path, o.write = T)
+```

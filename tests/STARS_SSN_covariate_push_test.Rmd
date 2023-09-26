@@ -1,0 +1,69 @@
+---
+title: "STARS_SSN_covariate_push_test"
+author: "Luke Vawter"
+date: '2023-02-10'
+output: html_document
+---
+
+import SSN package
+```{r}
+library("SSN")
+
+```
+
+```{r}
+path = "data/ICPRB6/lsn.ssn"
+
+```
+
+Import the data into an SSN object (without preds). 
+```{r}
+ssn_main <- importSSN(path)#,
+# predpts = "preds")
+
+```
+extract dataframe, change all HUC12 to 0, and put back in. Had to do full dataframe extraction as extracting and inserting covariates independently was not working.
+```{r}
+ssn_altered<- getSSNdata.frame(ssn_main)
+#test changing a value
+ssn_altered$HUC12 <- 0
+#test adding a value
+ssn_altered$test_add <- 1
+
+ssn_main_altered <- putSSNdata.frame(ssn_altered, ssn_main)
+
+```
+
+test if covariates have been overwritten properly, not duplicated
+```{r}
+names(ssn_main)
+names(ssn_main_altered)
+```
+Test if output can run as ssn object. OUtputs look good.
+```{r}
+ssn_main.Torg <- Torgegram(ssn_main_altered,"TWAT",nlag=20)
+plot(ssn_main.Torg)
+
+ssn_main.glmssn0 <- glmssn(TWAT ~ ELEV + SLOPE, ssn_main_altered,
+CorModels = NULL, use.nugget = TRUE)
+
+```
+
+testing with preds
+```{r}
+ssn_main_preds <- importSSN(path,
+predpts = "preds")
+
+ssn_altered_preds <- getSSNdata.frame(ssn_main_preds, "preds")
+
+#test changing a value
+ssn_altered_preds$HUC12 <- 0
+#test adding a value
+# ssn_altered_preds$test_add <- 1
+
+ssn_main_altered_preds <- putSSNdata.frame(ssn_altered_preds, ssn_main_preds)
+```
+
+
+
+
